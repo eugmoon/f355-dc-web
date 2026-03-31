@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -62,6 +63,12 @@ public class Races
 		{
 			timeoutEntries();
 			entries.put(id, entry);
+			List<String> allPlayers = new ArrayList<>();
+			for (Entry e : entries.values())
+				allPlayers.add(e.getName());
+			Collections.sort(allPlayers);
+			DiscordWebHook.playerWaiting(entry.getName(), F355.getCircuitName(entry.circuit),
+					allPlayers.toArray(new String[entries.size()]));
 		}
 		
 		int checkEntry(int id)
@@ -162,11 +169,16 @@ public class Races
 
 		Race race = new Race(votedCircuit, racers.get(0).weather);
 		races.add(race);
+		List<String> racerNames = new ArrayList<>();
 		for (Entry entry : racers) {
 			enterRace(race, entry.id, entry.entryData);
 			waitingList.entries.remove(entry.id);
+			racerNames.add(entry.getName());
 		}
 		race.setStatus(Race.STATUS_QUALIF);
+		
+		Collections.sort(racerNames);
+		DiscordWebHook.raceStart(race.getCircuitName(), racerNames.toArray(new String[racerNames.size()]));
 		
 		return race;
 	}
@@ -201,8 +213,8 @@ public class Races
 				time = (F355.getQualifierTime(race.getCircuit()) + 60) * 1000;
 				break;
 			case Race.STATUS_FINAL:
-				// add 2 min to the expected race time
-				time = (F355.getQualifierTime(race.getCircuit()) * F355.getLapCount(race.getCircuit()) + 120) * 1000;
+				// add 3 min to the expected race time
+				time = (F355.getQualifierTime(race.getCircuit()) * F355.getLapCount(race.getCircuit()) + 180) * 1000;
 				break;
 			case Race.STATUS_FINISHED:
 				// keep results for 5 min
@@ -232,7 +244,7 @@ public class Races
 				// Use default result for timed out drivers
 				byte [] defaultResult = null;
 				for (int id : race.getEntryIds())
-					if (race.getResult(id) == null)
+					if (race.hasQualified(id) && race.getResult(id) == null)
 					{
 						if (defaultResult == null)
 						{
@@ -262,6 +274,16 @@ public class Races
 	}
 	public synchronized int getRaceCount() {
 		return races.size();
+	}
+	public synchronized int getTotalPlayerCount() {
+		int playerCount = waitingList.entries.size();
+		for (Race race : races)
+		{
+			if (race.isRaceDone())
+				continue;
+			playerCount += race.getEntryCount();
+		}
+		return playerCount;
 	}
 
 	private List<Race> races = new ArrayList<>();
